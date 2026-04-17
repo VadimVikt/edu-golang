@@ -46,5 +46,4 @@ func Unpack(input string) (string, error) {
 	}
 
 	return string(result), nil
-
 }
