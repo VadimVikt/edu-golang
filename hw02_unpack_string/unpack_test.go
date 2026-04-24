@@ -2,7 +2,7 @@ package hw02unpackstring
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert" //nolint
 	"testing"
 
 	"github.com/stretchr/testify/require" //nolint
