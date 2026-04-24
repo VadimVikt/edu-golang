@@ -2,9 +2,10 @@ package hw02unpackstring
 
 import (
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require" //nolint
 )
 
 func TestUnpack(t *testing.T) {
@@ -41,5 +42,24 @@ func TestUnpackInvalidString(t *testing.T) {
 			_, err := Unpack(tc)
 			require.Truef(t, errors.Is(err, ErrInvalidString), "actual error %q", err)
 		})
+	}
+}
+
+func TestAssertUnpackError(t *testing.T) {
+	var out, err = Unpack("A45")
+	assert.True(t, errors.Is(err, ErrInvalidString))
+	assert.Equal(t, "", out)
+}
+
+func TestUnpackErrorF(t *testing.T) {
+	const str, want = "a3bc", "aaabc"
+	got, err := Unpack(str)
+
+	if err != nil {
+		t.Errorf("unpack returns unexpected error: %q", str)
+	}
+
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
