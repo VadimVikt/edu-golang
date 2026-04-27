@@ -36,9 +36,13 @@ func Top10(text string) []string {
 		return wordCounts[i].Count > wordCounts[j].Count
 	})
 	topN := 10
+
 	if len(wordCounts) == 0 {
 		return nil
+	} else if len(wordCounts) < topN {
+		topN = len(wordCounts)
 	}
+
 	resultStruct := wordCounts[:topN]
 	res := make([]string, 0)
 	for _, v := range resultStruct {

@@ -1,6 +1,7 @@
 package hw03frequencyanalysis
 
 import (
+	"github.com/stretchr/testify/assert" //nolint
 	"testing"
 
 	"github.com/stretchr/testify/require" //nolint
@@ -79,4 +80,22 @@ func TestTop10(t *testing.T) {
 			require.Equal(t, expected, Top10(text))
 		}
 	})
+}
+
+func TestLenTop10(t *testing.T) {
+	testCases := []struct {
+		text string
+		want int
+	}{
+		{text: "aaa bbb ccc d e ", want: 5},
+		{text: "aaa bbb ccc d e f g ", want: 7},
+		{text: "aaa bbb ccc d e f g h i j", want: 10},
+		{text: "aaa bbb ccc d e f g h i j k l m n", want: 10},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.text, func(t *testing.T) {
+			res := Top10(tc.text)
+			assert.Equal(t, tc.want, len(res))
+		})
+	}
 }
