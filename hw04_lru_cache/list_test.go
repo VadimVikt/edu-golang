@@ -3,7 +3,7 @@ package hw04lrucache
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require" //nolint
 )
 
 func TestList(t *testing.T) {
@@ -48,4 +48,51 @@ func TestList(t *testing.T) {
 		}
 		require.Equal(t, []int{70, 80, 60, 40, 10, 30, 50}, elems)
 	})
+}
+
+func TestRemoveMiddleElement(t *testing.T) {
+	l := NewList()
+	l.PushFront(10)
+	l.PushBack(20)
+	l.PushBack(30)
+	tmp := l.Front().Next
+	l.Remove(tmp)
+	require.Equal(t, 2, l.Len())
+}
+
+func TestRemoveLastElement(t *testing.T) {
+	l := NewList()
+	l.PushFront(10)
+	l.PushBack(20)
+	l.PushBack(30)
+	l.Remove(l.Back())
+	require.Equal(t, 2, l.Len())
+	require.Equal(t, 20, l.Back().Value)
+}
+
+func TestRemoveFirstElement(t *testing.T) {
+	l := NewList()
+	l.PushFront(10)
+	l.PushBack(20)
+	l.Remove(l.Front())
+	require.Equal(t, 1, l.Len())
+	require.Equal(t, 20, l.Back().Value)
+}
+
+func TestRemoveEmptyList(t *testing.T) {
+	l := NewList()
+	l.Remove(l.Front())
+	require.Equal(t, 0, l.Len())
+}
+
+func TestMoveTailItem(t *testing.T) {
+	l := NewList()
+	l.PushFront(10)
+	l.PushBack(20)
+	l.PushBack(30)
+	l.PushBack(40)
+	tmp := l.Front().Next.Next.Next
+	l.MoveToFront(tmp)
+	require.Equal(t, 40, l.Front().Value)
+	require.Equal(t, 30, l.Back().Value)
 }
