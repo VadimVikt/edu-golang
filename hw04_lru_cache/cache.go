@@ -49,8 +49,8 @@ func (lc *lruCache) Set(key Key, value interface{}) bool {
 }
 
 func (lc *lruCache) Get(key Key) (interface{}, bool) {
-	lc.mutex.RLock()
-	defer lc.mutex.RUnlock()
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
 
 	if lc.items[key] == nil {
 		return nil, false
