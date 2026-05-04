@@ -1,6 +1,7 @@
 package hw04lrucache
 
 import (
+	"log"
 	"sync"
 )
 
@@ -13,10 +14,11 @@ type Cache interface {
 }
 
 type lruCache struct {
-	capacity int
-	queue    List
-	items    map[Key]*ListItem
-	mutex    sync.RWMutex
+	capacity   int
+	queue      List
+	items      map[Key]*ListItem
+	valueToKey map[interface{}]Key // инвертированная карта: значение -> ключ
+	mutex      sync.Mutex
 }
 
 func (lc *lruCache) Set(key Key, value interface{}) bool {
@@ -27,22 +29,28 @@ func (lc *lruCache) Set(key Key, value interface{}) bool {
 	}
 	// Ключ существует, обновляем значение
 	if item, ok := lc.items[key]; ok {
+		// Удаляем старое значение из valueToKey
+		delete(lc.valueToKey, item.Value)
 		item.Value = value
 		lc.queue.MoveToFront(item)
-		return true // Элемент уже был в кэше
+		// Добавляем новое значение в valueToKey
+		lc.valueToKey[value] = key
+		log.Printf("Key %s updated to %v\n", key, value)
+		return true
 	}
 	// Добавление нового элемента
 	lc.queue.PushFront(value)
 	lc.items[key] = lc.queue.Front()
+	lc.valueToKey[value] = key
 
 	// Удаление превышения кэша
 	if lc.queue.Len() > lc.capacity {
-		t := lc.queue.Back()
-		lc.queue.Remove(t)
-		for k, v := range lc.items {
-			if v.Value == t.Value {
-				delete(lc.items, k)
-			}
+		oldest := lc.queue.Back()
+		lc.queue.Remove(oldest)
+		// Находим ключ по значению через valueToKey
+		if k, ok := lc.valueToKey[oldest.Value]; ok {
+			delete(lc.items, k)
+			delete(lc.valueToKey, oldest.Value)
 		}
 	}
 	return false
@@ -65,20 +73,16 @@ func (lc *lruCache) Clear() {
 	lc.mutex.Lock()
 	defer lc.mutex.Unlock()
 	lc.items = map[Key]*ListItem{}
-	head := lc.queue.Front()
-	tail := lc.queue.Back()
-	head.Next = nil
-	tail.Prev = nil
-	lc.queue.Remove(head)
-	lc.queue.Remove(tail)
-	lc.queue.Len()
+	lc.valueToKey = map[interface{}]Key{}
+	lc.queue = NewList()
 }
 
 func NewCache(capacity int) Cache {
 	return &lruCache{
-		capacity: capacity,
-		queue:    NewList(),
-		items:    make(map[Key]*ListItem, capacity),
-		mutex:    sync.RWMutex{},
+		capacity:   capacity,
+		queue:      NewList(),
+		items:      make(map[Key]*ListItem, capacity),
+		valueToKey: make(map[interface{}]Key, capacity),
+		mutex:      sync.Mutex{},
 	}
 }
