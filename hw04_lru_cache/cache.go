@@ -14,11 +14,10 @@ type Cache interface {
 }
 
 type lruCache struct {
-	capacity   int
-	queue      List
-	items      map[Key]*ListItem
-	valueToKey map[interface{}]Key // инвертированная карта: значение -> ключ
-	mutex      sync.Mutex
+	capacity int
+	queue    List
+	items    map[Key]*ListItem
+	mutex    sync.Mutex
 }
 
 func (lc *lruCache) Set(key Key, value interface{}) bool {
@@ -29,29 +28,22 @@ func (lc *lruCache) Set(key Key, value interface{}) bool {
 	}
 	// Ключ существует, обновляем значение
 	if item, ok := lc.items[key]; ok {
-		// Удаляем старое значение из valueToKey
-		delete(lc.valueToKey, item.Value)
 		item.Value = value
+		item.Key = key
 		lc.queue.MoveToFront(item)
-		// Добавляем новое значение в valueToKey
-		lc.valueToKey[value] = key
 		log.Printf("Key %s updated to %v\n", key, value)
 		return true
 	}
 	// Добавление нового элемента
-	lc.queue.PushFront(value)
+	lc.queue.PushFront(value, key)
 	lc.items[key] = lc.queue.Front()
-	lc.valueToKey[value] = key
 
 	// Удаление превышения кэша
 	if lc.queue.Len() > lc.capacity {
 		oldest := lc.queue.Back()
+		oldKey := oldest.Key
 		lc.queue.Remove(oldest)
-		// Находим ключ по значению через valueToKey
-		if k, ok := lc.valueToKey[oldest.Value]; ok {
-			delete(lc.items, k)
-			delete(lc.valueToKey, oldest.Value)
-		}
+		delete(lc.items, oldKey)
 	}
 	return false
 }
@@ -65,6 +57,7 @@ func (lc *lruCache) Get(key Key) (interface{}, bool) {
 	}
 
 	item := lc.items[key]
+	item.Key = key
 	lc.queue.MoveToFront(item)
 	return item.Value, true
 }
@@ -73,16 +66,14 @@ func (lc *lruCache) Clear() {
 	lc.mutex.Lock()
 	defer lc.mutex.Unlock()
 	lc.items = map[Key]*ListItem{}
-	lc.valueToKey = map[interface{}]Key{}
 	lc.queue = NewList()
 }
 
 func NewCache(capacity int) Cache {
 	return &lruCache{
-		capacity:   capacity,
-		queue:      NewList(),
-		items:      make(map[Key]*ListItem, capacity),
-		valueToKey: make(map[interface{}]Key, capacity),
-		mutex:      sync.Mutex{},
+		capacity: capacity,
+		queue:    NewList(),
+		items:    make(map[Key]*ListItem, capacity),
+		mutex:    sync.Mutex{},
 	}
 }

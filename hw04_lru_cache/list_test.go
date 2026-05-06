@@ -18,9 +18,9 @@ func TestList(t *testing.T) {
 	t.Run("complex", func(t *testing.T) {
 		l := NewList()
 
-		l.PushFront(10) // [10]
-		l.PushBack(20)  // [10, 20]
-		l.PushBack(30)  // [10, 20, 30]
+		l.PushFront(10, "") // [10]
+		l.PushBack(20, "")  // [10, 20]
+		l.PushBack(30, "")  // [10, 20, 30]
 		require.Equal(t, 3, l.Len())
 
 		middle := l.Front().Next // 20
@@ -29,9 +29,9 @@ func TestList(t *testing.T) {
 
 		for i, v := range [...]int{40, 50, 60, 70, 80} {
 			if i%2 == 0 {
-				l.PushFront(v)
+				l.PushFront(v, "")
 			} else {
-				l.PushBack(v)
+				l.PushBack(v, "")
 			}
 		} // [80, 60, 40, 10, 30, 50, 70]
 
@@ -52,9 +52,9 @@ func TestList(t *testing.T) {
 
 func TestRemoveMiddleElement(t *testing.T) {
 	l := NewList()
-	l.PushFront(10)
-	l.PushBack(20)
-	l.PushBack(30)
+	l.PushFront(10, "")
+	l.PushBack(20, "")
+	l.PushBack(30, "")
 	tmp := l.Front().Next
 	l.Remove(tmp)
 	require.Equal(t, 2, l.Len())
@@ -62,9 +62,9 @@ func TestRemoveMiddleElement(t *testing.T) {
 
 func TestRemoveLastElement(t *testing.T) {
 	l := NewList()
-	l.PushFront(10)
-	l.PushBack(20)
-	l.PushBack(30)
+	l.PushFront(10, "")
+	l.PushBack(20, "")
+	l.PushBack(30, "")
 	l.Remove(l.Back())
 	require.Equal(t, 2, l.Len())
 	require.Equal(t, 20, l.Back().Value)
@@ -72,8 +72,8 @@ func TestRemoveLastElement(t *testing.T) {
 
 func TestRemoveFirstElement(t *testing.T) {
 	l := NewList()
-	l.PushFront(10)
-	l.PushBack(20)
+	l.PushFront(10, "")
+	l.PushBack(20, "")
 	l.Remove(l.Front())
 	require.Equal(t, 1, l.Len())
 	require.Equal(t, 20, l.Back().Value)
@@ -87,10 +87,10 @@ func TestRemoveEmptyList(t *testing.T) {
 
 func TestMoveTailItem(t *testing.T) {
 	l := NewList()
-	l.PushFront(10)
-	l.PushBack(20)
-	l.PushBack(30)
-	l.PushBack(40)
+	l.PushFront(10, "")
+	l.PushBack(20, "")
+	l.PushBack(30, "")
+	l.PushBack(40, "")
 	tmp := l.Front().Next.Next.Next
 	l.MoveToFront(tmp)
 	require.Equal(t, 40, l.Front().Value)
