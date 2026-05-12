@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -67,4 +69,69 @@ func TestRun(t *testing.T) {
 		require.Equal(t, int32(tasksCount), runTasksCount, "not all tasks were completed")
 		require.LessOrEqual(t, int64(elapsedTime), int64(sumTime/2), "tasks were run sequentially?")
 	})
+
+	t.Run("tasks with errors without time.Sleep", func(t *testing.T) {
+		tasksCount := 50
+		workersCount := 5
+		maxErrorsCount := 1
+
+		var (
+			runTasksCount     int32
+			maxConcurrent     int32
+			currentConcurrent int32
+			mu                sync.Mutex
+		)
+		tasks := make([]Task, 0, tasksCount)
+		for i := 0; i < tasksCount; i++ {
+			done := make(chan struct{})
+			close(done)
+			tasks = append(tasks, func() error {
+				atomic.AddInt32(&currentConcurrent, 1)
+				mu.Lock()
+				if currentConcurrent > maxConcurrent {
+					maxConcurrent = currentConcurrent
+				}
+				mu.Unlock()
+				<-done
+				atomic.AddInt32(&currentConcurrent, 1)
+				atomic.AddInt32(&runTasksCount, 1)
+				return nil
+			})
+		}
+		start := time.Now()
+		err := Run(tasks, workersCount, maxErrorsCount)
+		elapsedTime := time.Since(start)
+		require.NoError(t, err)
+		require.Equal(t, int32(tasksCount), runTasksCount, "не все задачи были выполнены")
+		require.GreaterOrEqual(t, maxConcurrent, int32(workersCount), "задачи выполнялись не параллельно")
+		require.Less(t, elapsedTime, 100*time.Millisecond, "задачи выполнялись слишком долго (последовательно?)")
+
+	})
+}
+
+func TestMyTask(t *testing.T) {
+	tasks := []Task{
+		func() error { fmt.Println("task 1 ---ok"); return nil },
+		func() error { fmt.Println("task 2 ---err"); return errors.New("err") },
+		func() error { fmt.Println("task 3 ---ok"); return nil },
+		func() error { fmt.Println("task 4 ---err"); return errors.New("err") },
+		func() error { fmt.Println("task 5 ---err"); return errors.New("err") },
+		func() error { fmt.Println("task 6 ---ok"); return nil },
+	}
+	workersCount := 4
+	maxErrorsCount := 4
+	err := Run(tasks, workersCount, maxErrorsCount)
+	_ = err
+	fmt.Printf("Количество горутин после завершения теста: %d\n", runtime.NumGoroutine())
+}
+
+func TestNoError(t *testing.T) {
+	tasks := []Task{
+		func() error { fmt.Println("task 1 ---ok"); return nil },
+		func() error { fmt.Println("task 2 ---err"); return errors.New("err") },
+	}
+	workersCount := 2
+	maxErrorsCount := 0
+	err := Run(tasks, workersCount, maxErrorsCount)
+	require.Equal(t, err, ErrErrorsLimitExceeded)
 }
