@@ -17,6 +17,7 @@ func TestRun(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	t.Run("if were errors in first M tasks, than finished not more N+M tasks", func(t *testing.T) {
+		t.Parallel()
 		tasksCount := 50
 		tasks := make([]Task, 0, tasksCount)
 
@@ -39,6 +40,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("tasks with errors without time.Sleep", func(t *testing.T) {
+		t.Parallel()
 		tasksCount := 50
 		workersCount := 5
 		maxErrorsCount := 1
@@ -77,6 +79,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestNoError(t *testing.T) {
+	t.Parallel()
 	tasks := []Task{
 		func() error { fmt.Println("task 1 ---ok"); return nil },
 		func() error { fmt.Println("task 2 ---err"); return errors.New("err") },
@@ -88,6 +91,7 @@ func TestNoError(t *testing.T) {
 }
 
 func TestNoWorkers(t *testing.T) {
+	t.Parallel()
 	tasks := []Task{
 		func() error { fmt.Println("task 1 ---ok"); return nil },
 	}
