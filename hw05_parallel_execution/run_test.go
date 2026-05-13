@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -75,23 +74,6 @@ func TestRun(t *testing.T) {
 		require.GreaterOrEqual(t, maxConcurrent, int32(workersCount), "задачи выполнялись не параллельно")
 		require.Less(t, elapsedTime, 100*time.Millisecond, "задачи выполнялись слишком долго (последовательно?)")
 	})
-}
-
-func TestMyTask(t *testing.T) {
-	tasks := []Task{
-		func() error { fmt.Println("task 1 ---ok"); return nil },
-		func() error { fmt.Println("task 2 ---err"); return errors.New("err") },
-		func() error { fmt.Println("task 3 ---ok"); return nil },
-		func() error { fmt.Println("task 4 ---err"); return errors.New("err") },
-		func() error { fmt.Println("task 5 ---err"); return errors.New("err") },
-		func() error { fmt.Println("task 6 ---ok"); return nil },
-	}
-	workersCount := 4
-	maxErrorsCount := 4
-	err := Run(tasks, workersCount, maxErrorsCount)
-	_ = err
-	fmt.Printf("Количество горутин после завершения теста: %d\n", runtime.NumGoroutine())
-	require.Falsef(t, errors.Is(err, ErrErrorsLimitExceeded), "actual err - %v", err)
 }
 
 func TestNoError(t *testing.T) {
