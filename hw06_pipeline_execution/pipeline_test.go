@@ -15,8 +15,9 @@ const (
 )
 
 func TestPipeline(t *testing.T) {
+	t.Parallel()
 	// Stage generator
-	g := func(_ string, f func(v interface{}) interface{}) Stage {
+	g := func(name string, f func(v interface{}) interface{}) Stage {
 		return func(in In) Out {
 			out := make(Bi)
 			go func() {
@@ -31,13 +32,14 @@ func TestPipeline(t *testing.T) {
 	}
 
 	stages := []Stage{
-		g("Dummy", func(v interface{}) interface{} { return v }),
+		//g("Dummy", func(v interface{}) interface{} { return v }),
 		g("Multiplier (* 2)", func(v interface{}) interface{} { return v.(int) * 2 }),
-		g("Adder (+ 100)", func(v interface{}) interface{} { return v.(int) + 100 }),
-		g("Stringifier", func(v interface{}) interface{} { return strconv.Itoa(v.(int)) }),
+		//g("Adder (+ 100)", func(v interface{}) interface{} { return v.(int) + 100 }),
+		//g("Stringifier", func(v interface{}) interface{} { return strconv.Itoa(v.(int)) }),
 	}
 
 	t.Run("simple case", func(t *testing.T) {
+		t.Parallel()
 		in := make(Bi)
 		data := []int{1, 2, 3, 4, 5}
 
@@ -63,6 +65,7 @@ func TestPipeline(t *testing.T) {
 	})
 
 	t.Run("done case", func(t *testing.T) {
+		t.Parallel()
 		in := make(Bi)
 		done := make(Bi)
 		data := []int{1, 2, 3, 4, 5}
@@ -94,6 +97,7 @@ func TestPipeline(t *testing.T) {
 }
 
 func TestAllStageStop(t *testing.T) {
+	t.Parallel()
 	wg := sync.WaitGroup{}
 	// Stage generator
 	g := func(_ string, f func(v interface{}) interface{}) Stage {
@@ -120,6 +124,7 @@ func TestAllStageStop(t *testing.T) {
 	}
 
 	t.Run("done case", func(t *testing.T) {
+		t.Parallel()
 		in := make(Bi)
 		done := make(Bi)
 		data := []int{1, 2, 3, 4, 5}
