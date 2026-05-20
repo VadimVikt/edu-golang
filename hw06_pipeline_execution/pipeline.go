@@ -32,7 +32,7 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 	return current
 }
 
-// orDone оборачивает канал, чтобы он закрывался при done
+// orDone оборачивает канал, чтобы он закрывался при done.
 func orDone(in In, done In) In {
 	out := make(Bi)
 	go func() {
