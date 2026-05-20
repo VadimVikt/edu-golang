@@ -1,7 +1,5 @@
 package hw06pipelineexecution
 
-import "log"
-
 type (
 	In  = <-chan interface{}
 	Out = In
@@ -11,24 +9,49 @@ type (
 type Stage func(in In) (out Out)
 
 func ExecutePipeline(in In, done In, stages ...Stage) Out {
-	// Place your code here.
-	currentOut := in
-	for i, stage := range stages {
-		log.Printf("Stage %v processing", i)
-		nexOut := make(Bi)
+	if len(stages) == 0 {
+		return in
+	}
+	current := in
+	for _, stage := range stages {
+		// Создаем выходной канал для текущей стадии
+		out := make(Bi)
+		// Запускаем стадию в горутине
 		go func(s Stage, in In, out Bi) {
 			defer close(out)
-			for val := range in {
+			for val := range s(orDone(in, done)) {
 				select {
+				case out <- val:
 				case <-done:
 					return
-				case out <- val:
 				}
 			}
-		}(stage, currentOut, nexOut)
-
-		currentOut = nexOut
-
+		}(stage, current, out)
+		current = out
 	}
-	return currentOut
+	return current
+}
+
+// orDone оборачивает канал, чтобы он закрывался при done
+func orDone(in In, done In) In {
+	out := make(Bi)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-done:
+				return
+			case val, ok := <-in:
+				if !ok {
+					return
+				}
+				select {
+				case out <- val:
+				case <-done:
+					return
+				}
+			}
+		}
+	}()
+	return out
 }
