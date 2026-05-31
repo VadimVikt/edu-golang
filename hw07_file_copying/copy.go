@@ -118,12 +118,21 @@ func startProgressBar(bytesToCopy int64) (chan struct{}, *int64) {
 }
 
 // --- Главная функция: Оркестратор ---
-// Copy теперь координирует работу других функций. Она короткая и читаемая.
+
 func Copy(fromPath, toPath string, offset, limit int64) error {
 	input, output, err := openFiles(fromPath, toPath)
 	if err != nil {
+		// Проверяем, были ли открыты файлы, прежде чем пытаться их закрыть
+		if input != nil {
+			input.Close()
+		}
+		if output != nil {
+			output.Close()
+		}
 		return err
 	}
+
+	// Используем defer только после успешной проверки err == nil
 	defer input.Close()
 	defer output.Close()
 

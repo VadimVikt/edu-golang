@@ -25,4 +25,8 @@ func main() {
 	fmt.Printf("Файл для записи (-to): %s\n", to)
 	fmt.Printf("Лимит байт (-limit): %d\n", limit)
 	fmt.Printf("Смещение (-offset): %d\n", offset)
+	err := Copy(from, to, offset, limit)
+	if err != nil {
+		fmt.Println(err)
+	}
 }

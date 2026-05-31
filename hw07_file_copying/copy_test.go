@@ -107,3 +107,10 @@ func getDataFromTests(fileInput, fileOutput string) (in, out int64) {
 	}
 	return infoIn.Size(), infoOut.Size()
 }
+
+func TestCopy(t *testing.T) {
+	err := Copy("testdata/input.txt", "testdata/tmp/out.txt", 0, 10)
+	if err != nil {
+		t.Error(err)
+	}
+}
