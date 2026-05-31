@@ -2,6 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"io"
+	"os"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -9,7 +14,147 @@ var (
 	ErrOffsetExceedsFileSize = errors.New("offset exceeds file size")
 )
 
+const (
+	bufferSize = 64 * 1024 // 64 KB
+)
+
+// copyData отвечает только за цикл чтения/записи.
+func copyData(input *os.File, output *os.File, bytesToCopy int64) (int64, error) {
+	var copied int64
+	buffer := make([]byte, bufferSize)
+
+	for atomic.LoadInt64(&copied) < bytesToCopy {
+		remaining := bytesToCopy - atomic.LoadInt64(&copied)
+		chunkSize := bufferSize
+		if remaining < int64(bufferSize) {
+			chunkSize = int(remaining)
+		}
+
+		n, err := input.Read(buffer[:chunkSize])
+		if n > 0 {
+			if _, werr := output.Write(buffer[:n]); werr != nil {
+				return copied, fmt.Errorf("ошибка записи: %w", werr)
+			}
+			atomic.AddInt64(&copied, int64(n))
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return copied, fmt.Errorf("ошибка чтения: %w", err)
+		}
+	}
+	return copied, nil
+}
+
+// validateAndPrepare проверяет параметры и вычисляет bytesToCopy.
+func validateAndPrepare(input *os.File, offset, limit int64) (int64, error) {
+	info, err := input.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", ErrUnsupportedFile, err.Error())
+	}
+	if info.Size() == 0 {
+		return 0, fmt.Errorf("файл имеет нулевой размер или не поддерживается (например, /dev/urandom)")
+	}
+
+	fileSize := info.Size()
+	if offset >= fileSize {
+		return 0, fmt.Errorf("%w: offset %d превышает размер файла %d", ErrOffsetExceedsFileSize, offset, fileSize)
+	}
+
+	bytesToCopy := limit
+	if limit == 0 || limit > fileSize-offset {
+		bytesToCopy = fileSize - offset
+	}
+
+	if _, err := input.Seek(offset, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("не удалось установить позицию в источнике: %w", err)
+	}
+	return bytesToCopy, nil
+}
+
+// openFiles инкапсулирует логику открытия файлов.
+func openFiles(fromPath, toPath string) (*os.File, *os.File, error) {
+	input, err := os.Open(fromPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %s", ErrUnsupportedFile, err.Error())
+	}
+
+	output, err := os.Create(toPath)
+	if err != nil {
+		input.Close() // Не забываем закрыть input в случае ошибки создания output
+		return nil, nil, fmt.Errorf("%w: %s", ErrUnsupportedFile, err.Error())
+	}
+	return input, output, nil
+}
+
+// startProgressBar запускает горутину и возвращает канал done и указатель на счетчик.
+func startProgressBar(bytesToCopy int64) (chan struct{}, *int64) {
+	done := make(chan struct{})
+	var copied int64
+
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+	L:
+		for {
+			select {
+			case <-ticker.C:
+				current := atomic.LoadInt64(&copied)
+				if bytesToCopy > 0 {
+					percent := float64(current) / float64(bytesToCopy) * 100
+					fmt.Printf("\rПрогресс: %.1f%% (%d/%d байт)", percent, current, bytesToCopy)
+				}
+			case <-done:
+				current := atomic.LoadInt64(&copied)
+				fmt.Printf("\rПрогресс: 100%% (%d/%d байт) - завершено\n", current, bytesToCopy)
+				break L
+			}
+		}
+	}()
+	return done, &copied
+}
+
+// --- Главная функция: Оркестратор ---
+
 func Copy(fromPath, toPath string, offset, limit int64) error {
-	// Place your code here.
+	input, output, err := openFiles(fromPath, toPath)
+	if err != nil {
+		// Проверяем, были ли открыты файлы, прежде чем пытаться их закрыть
+		if input != nil {
+			input.Close()
+		}
+		if output != nil {
+			output.Close()
+		}
+		return err
+	}
+
+	// Используем defer только после успешной проверки err == nil
+	defer input.Close()
+	defer output.Close()
+
+	bytesToCopy, err := validateAndPrepare(input, offset, limit)
+	if err != nil {
+		return err
+	}
+
+	done, _ := startProgressBar(bytesToCopy)
+	defer close(done)
+
+	copiedCount, err := copyData(input, output, bytesToCopy)
+	if err != nil {
+		return err
+	}
+
+	if copiedCount != bytesToCopy {
+		return fmt.Errorf("скопировано %d байт из ожидаемых %d", copiedCount, bytesToCopy)
+	}
+
+	if err := output.Sync(); err != nil {
+		return fmt.Errorf("ошибка синхронизации файла: %w", err)
+	}
 	return nil
 }
