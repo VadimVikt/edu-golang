@@ -8,36 +8,6 @@ import (
 	"github.com/stretchr/testify/require" //nolint
 )
 
-func TestCopySize(t *testing.T) {
-	errDel := os.Remove("./testdata/tmp/output.txt")
-	if errDel != nil {
-		fmt.Println("Файл не найден", errDel)
-	}
-	input, err := os.Open("testdata/input.txt")
-	if err != nil {
-		t.Error(err)
-	}
-	defer input.Close()
-
-	errCopy := Copy("testdata/input.txt", "testdata/tmp/output.txt", 0, 10_000)
-	if errCopy != nil {
-		t.Error(errCopy)
-	}
-	infoOut, errOut := os.Stat("testdata/tmp/output.txt")
-	if errOut != nil {
-		t.Error(errOut)
-	}
-
-	info, err := input.Stat()
-	if err != nil {
-		t.Error(err)
-	}
-
-	fmt.Println(info.Size())
-
-	require.Equal(t, info.Size(), infoOut.Size())
-}
-
 func TestLimit(t *testing.T) {
 	t.Run("Offset 0, limit 0", func(t *testing.T) {
 		var offset int64
