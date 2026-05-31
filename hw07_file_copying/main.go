@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 )
 
 var (
@@ -19,4 +20,9 @@ func init() {
 func main() {
 	flag.Parse()
 	// Place your code here.
+	fmt.Println("Параметры программы:")
+	fmt.Printf("Файл для чтения (-from): %s\n", from)
+	fmt.Printf("Файл для записи (-to): %s\n", to)
+	fmt.Printf("Лимит байт (-limit): %d\n", limit)
+	fmt.Printf("Смещение (-offset): %d\n", offset)
 }
