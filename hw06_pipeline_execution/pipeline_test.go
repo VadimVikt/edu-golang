@@ -1,12 +1,11 @@
 package hw06pipelineexecution
 
 import (
+	"github.com/stretchr/testify/require" //nolint
 	"strconv"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -15,6 +14,7 @@ const (
 )
 
 func TestPipeline(t *testing.T) {
+	t.Parallel()
 	// Stage generator
 	g := func(_ string, f func(v interface{}) interface{}) Stage {
 		return func(in In) Out {
@@ -40,33 +40,52 @@ func TestPipeline(t *testing.T) {
 	t.Run("simple case", func(t *testing.T) {
 		in := make(Bi)
 		data := []int{1, 2, 3, 4, 5}
-
 		go func() {
 			for _, v := range data {
 				in <- v
 			}
 			close(in)
 		}()
-
 		result := make([]string, 0, 10)
 		start := time.Now()
 		for s := range ExecutePipeline(in, nil, stages...) {
 			result = append(result, s.(string))
 		}
 		elapsed := time.Since(start)
-
 		require.Equal(t, []string{"102", "104", "106", "108", "110"}, result)
 		require.Less(t,
 			int64(elapsed),
 			// ~0.8s for processing 5 values in 4 stages (100ms every) concurrently
 			int64(sleepPerStage)*int64(len(stages)+len(data)-1)+int64(fault))
 	})
+}
+func TestDoneCase(t *testing.T) {
+	t.Parallel()
+	// Stage generator
+	g := func(_ string, f func(v interface{}) interface{}) Stage {
+		return func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					time.Sleep(sleepPerStage)
+					out <- f(v)
+				}
+			}()
+			return out
+		}
+	}
 
+	stages := []Stage{
+		g("Dummy", func(v interface{}) interface{} { return v }),
+		g("Multiplier (* 2)", func(v interface{}) interface{} { return v.(int) * 2 }),
+		g("Adder (+ 100)", func(v interface{}) interface{} { return v.(int) + 100 }),
+		g("Stringifier", func(v interface{}) interface{} { return strconv.Itoa(v.(int)) }),
+	}
 	t.Run("done case", func(t *testing.T) {
 		in := make(Bi)
 		done := make(Bi)
 		data := []int{1, 2, 3, 4, 5}
-
 		// Abort after 200ms
 		abortDur := sleepPerStage * 2
 		go func() {
@@ -94,6 +113,7 @@ func TestPipeline(t *testing.T) {
 }
 
 func TestAllStageStop(t *testing.T) {
+	t.Parallel()
 	wg := sync.WaitGroup{}
 	// Stage generator
 	g := func(_ string, f func(v interface{}) interface{}) Stage {
@@ -143,8 +163,74 @@ func TestAllStageStop(t *testing.T) {
 			result = append(result, s.(string))
 		}
 		wg.Wait()
-
 		require.Len(t, result, 0)
+	})
+}
 
+type Users struct {
+	ID   int
+	Name string
+	Role string
+	Age  int
+}
+
+func TestStructPipeline(t *testing.T) {
+	t.Parallel()
+	g := func(_ string, f func(v interface{}) interface{}) Stage {
+		return func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					<-time.After(sleepPerStage)
+					result := f(v)
+					out <- result
+				}
+			}()
+			return out
+		}
+	}
+	stages := []Stage{
+		g("Search User", func(v interface{}) interface{} {
+			user := v.(Users)
+			if user.Role == "User" {
+				return user
+			}
+			return Users{0, "", "", 0}
+		}),
+		g("User after 25 before 50", func(v interface{}) interface{} {
+			user := v.(Users)
+			if user.Age > 25 && user.Age < 50 {
+				return user
+			}
+			return Users{0, "", "", 0}
+		}),
+	}
+	t.Run("Users filter", func(t *testing.T) {
+		in := make(Bi)
+		data := []Users{
+			{1, "Alice", "Admin", 20},
+			{2, "Bob", "User", 30},
+			{3, "Charlie", "User", 40},
+			{4, "David", "User", 50},
+		}
+		go func() {
+			for _, v := range data {
+				in <- v
+			}
+			close(in)
+		}()
+		result := make([]Users, 0, 10)
+		for s := range ExecutePipeline(in, nil, stages...) {
+			res := s.(Users)
+			if res.ID != 0 {
+				result = append(result, res)
+			}
+		}
+		usersNames := make([]string, 0, 10)
+		for _, user := range result {
+			usersNames = append(usersNames, user.Name)
+		}
+		require.Equal(t, []string{"Bob", "Charlie"}, usersNames)
 	})
 }
