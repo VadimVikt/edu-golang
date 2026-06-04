@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sync/atomic"
-	"time"
 )
 
 var (
@@ -19,7 +18,7 @@ const (
 )
 
 // copyData отвечает только за цикл чтения/записи.
-func copyData(input *os.File, output *os.File, bytesToCopy int64) (int64, error) {
+func copyData(input *os.File, output *os.File, bytesToCopy int64, progressChan chan<- int64) (int64, error) {
 	var copied int64
 	buffer := make([]byte, bufferSize)
 
@@ -35,7 +34,10 @@ func copyData(input *os.File, output *os.File, bytesToCopy int64) (int64, error)
 			if _, werr := output.Write(buffer[:n]); werr != nil {
 				return copied, fmt.Errorf("ошибка записи: %w", werr)
 			}
-			atomic.AddInt64(&copied, int64(n))
+			// Атомарно увеличиваем счетчик
+			newCopied := atomic.AddInt64(&copied, int64(n))
+			// Отправляем новое значение в канал для обновления прогресс-бара
+			progressChan <- newCopied
 		}
 
 		if err != nil {
@@ -45,7 +47,7 @@ func copyData(input *os.File, output *os.File, bytesToCopy int64) (int64, error)
 			return copied, fmt.Errorf("ошибка чтения: %w", err)
 		}
 	}
-	return copied, nil
+	return atomic.LoadInt64(&copied), nil
 }
 
 // validateAndPrepare проверяет параметры и вычисляет bytesToCopy.
@@ -90,31 +92,18 @@ func openFiles(fromPath, toPath string) (*os.File, *os.File, error) {
 }
 
 // startProgressBar запускает горутину и возвращает канал done и указатель на счетчик.
-func startProgressBar(bytesToCopy int64) (chan struct{}, *int64) {
-	done := make(chan struct{})
-	var copied int64
-
+func startProgressBar(bytesToCopy int64, progressChan <-chan int64) {
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-
-	L:
-		for {
-			select {
-			case <-ticker.C:
-				current := atomic.LoadInt64(&copied)
-				if bytesToCopy > 0 {
-					percent := float64(current) / float64(bytesToCopy) * 100
-					fmt.Printf("\rПрогресс: %.1f%% (%d/%d байт)", percent, current, bytesToCopy)
-				}
-			case <-done:
-				current := atomic.LoadInt64(&copied)
-				fmt.Printf("\rПрогресс: 100%% (%d/%d байт) - завершено\n", current, bytesToCopy)
-				break L
+		for current := range progressChan {
+			if bytesToCopy > 0 {
+				percent := float64(current) / float64(bytesToCopy) * 100
+				// \r возвращает курсор в начало строки для перезаписи
+				fmt.Printf("\rПрогресс: %.1f%% (%d/%d байт)", percent, current, bytesToCopy)
 			}
 		}
+		// Этот код выполнится после закрытия канала progressChan
+		fmt.Println() // Переводим курсор на новую строку после завершения
 	}()
-	return done, &copied
 }
 
 // --- Главная функция: Оркестратор ---
@@ -122,7 +111,6 @@ func startProgressBar(bytesToCopy int64) (chan struct{}, *int64) {
 func Copy(fromPath, toPath string, offset, limit int64) error {
 	input, output, err := openFiles(fromPath, toPath)
 	if err != nil {
-		// Проверяем, были ли открыты файлы, прежде чем пытаться их закрыть
 		if input != nil {
 			input.Close()
 		}
@@ -131,8 +119,6 @@ func Copy(fromPath, toPath string, offset, limit int64) error {
 		}
 		return err
 	}
-
-	// Используем defer только после успешной проверки err == nil
 	defer input.Close()
 	defer output.Close()
 
@@ -141,10 +127,18 @@ func Copy(fromPath, toPath string, offset, limit int64) error {
 		return err
 	}
 
-	done, _ := startProgressBar(bytesToCopy)
-	defer close(done)
+	// 1. Создаем канал для передачи прогресса
+	progressChan := make(chan int64)
 
-	copiedCount, err := copyData(input, output, bytesToCopy)
+	// 2. Запускаем прогресс-бар, передав ему канал для чтения
+	startProgressBar(bytesToCopy, progressChan)
+
+	// 3. Запускаем копирование, передав ему канал для записи
+	copiedCount, err := copyData(input, output, bytesToCopy, progressChan)
+
+	// 4. ОБЯЗАТЕЛЬНО закрываем канал, чтобы горутина прогресс-бара завершила цикл for-range
+	close(progressChan)
+
 	if err != nil {
 		return err
 	}
