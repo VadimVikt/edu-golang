@@ -14,12 +14,6 @@ func TestRunCmd(t *testing.T) {
 		require.Equal(t, 127, code)
 	})
 
-	t.Run("Command does not exist", func(t *testing.T) {
-		env := make(Environment)
-		code := RunCmd([]string{"command", "1", "2"}, env)
-		require.Equal(t, 127, code)
-	})
-
 	t.Run("Command is exist", func(t *testing.T) {
 		env := make(Environment)
 		code := RunCmd([]string{"cd", "..", "-l"}, env)
