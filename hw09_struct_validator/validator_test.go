@@ -99,9 +99,31 @@ func TestValidate(t *testing.T) {
 func TestNoStructType(t *testing.T) {
 	user := 1
 	err := Validate(user)
-
 	t.Logf("Actual error type: %T", err)
 	t.Logf("Actual error: %+v", err)
 	require.Error(t, err, "Expected error for %s")
 	assert.ErrorIs(t, err, ErrExpectedStruct, "Error mismatch for %s")
+}
+
+func TestTagNotProvider(t *testing.T) {
+	type User struct {
+		ID     string `json:"id" validate:"len:36"`
+		Name   string
+		Age    int      `validate:"min:B52|max:50"`
+		Email  string   `validate:"regexp:^\\w+@\\w+\\.\\w+$"`
+		Role   UserRole `validate:"in:admin, stuff"`
+		Phones []string `validate:"len:11"`
+	}
+	user := User{
+		ID:     "123e4567-e89b-12d3-a456-426614174000",
+		Name:   "Ivan",
+		Age:    250,
+		Email:  "no-invalid email.ru",
+		Role:   "user",
+		Phones: []string{"79991234567"},
+	}
+
+	err := Validate(user)
+	t.Logf("Actual error type: %T", err)
+	require.Error(t, err, "Expected error for %s")
 }

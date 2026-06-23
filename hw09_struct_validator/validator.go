@@ -19,7 +19,6 @@ const (
 )
 
 var (
-	ErrInvalidRegexp   = errors.New("invalid regexp")
 	ErrRequiredField   = errors.New("field required")
 	ErrInvalidLength   = errors.New("invalid length")
 	ErrValueOutOfRange = errors.New("value out of range")
@@ -61,7 +60,6 @@ func (v ValidationErrors) Is(target error) bool {
 func Validate(v interface{}) error {
 	var result ValidationErrors
 	t := reflect.TypeOf(v)
-
 	if t.Kind() != reflect.Struct {
 		return ErrExpectedStruct
 	}
@@ -79,9 +77,15 @@ func Validate(v interface{}) error {
 			if err.Err == nil {
 				continue
 			}
+			if errors.Is(err.Err, ErrTagNotProvided) {
+				return errors.New("tag not provided, validation break")
+			}
 			result = append(result, err)
 		case reflect.Int:
 			err := validateInt(field.Name, int(val.Field(i).Int()), tags)
+			if errors.Is(err.Err, ErrTagNotProvided) {
+				return errors.New("tag not provided, validation break")
+			}
 			if err.Err == nil {
 				continue
 			}
@@ -100,11 +104,7 @@ func Validate(v interface{}) error {
 					continue
 				}
 				result = append(result, err)
-			default:
-				continue
 			}
-		default:
-			continue
 		}
 	}
 	return result
@@ -150,12 +150,18 @@ func validateInt(fieldName string, field int, tags map[string]string) Validation
 	for k, v := range tags {
 		switch k {
 		case TagMax:
-			val, _ := strconv.Atoi(v)
+			val, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationError{fieldName, ErrTagNotProvided}
+			}
 			if field > val {
 				return ValidationError{fieldName, ErrGraterThanMax}
 			}
 		case TagMin:
-			val, _ := strconv.Atoi(v)
+			val, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationError{fieldName, ErrTagNotProvided}
+			}
 			if field < val {
 				return ValidationError{fieldName, ErrLessThanMin}
 			}
@@ -178,14 +184,17 @@ func validateString(fieldName string, field string, tags map[string]string) Vali
 				return ValidationError{fieldName, ErrRequiredField}
 			}
 		case TagLength:
-			lenField, _ := strconv.Atoi(v)
+			lenField, err := strconv.Atoi(v)
+			if err != nil {
+				return ValidationError{fieldName, ErrTagNotProvided}
+			}
 			if len([]rune(field)) != lenField {
 				return ValidationError{fieldName, ErrInvalidLength}
 			}
 		case TagRegex:
 			re, err := regexp.Compile(v)
 			if err != nil {
-				return ValidationError{fieldName, ErrInvalidRegexp}
+				return ValidationError{fieldName, ErrTagNotProvided}
 			}
 			if !re.MatchString(field) {
 				return ValidationError{fieldName, ErrInvalidFormat}
