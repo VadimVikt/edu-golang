@@ -125,5 +125,5 @@ func TestTagNotProvider(t *testing.T) {
 
 	err := Validate(user)
 	t.Logf("Actual error type: %T", err)
-	require.Error(t, err, "Expected error for %s")
+	require.Error(t, err, "Expected error for %s", err)
 }
