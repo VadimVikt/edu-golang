@@ -1,11 +1,13 @@
 package hw10programoptimization
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
 	"io"
 	"regexp"
 	"strings"
+
+	jsoniter "github.com/bytedance/sonic" //nolint
 )
 
 type User struct {
@@ -21,46 +23,50 @@ type User struct {
 type DomainStat map[string]int
 
 func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
-	u, err := getUsers(r)
-	if err != nil {
-		return nil, fmt.Errorf("get users error: %w", err)
-	}
-	return countDomains(u, domain)
-}
-
-type users [100_000]User
-
-func getUsers(r io.Reader) (result users, err error) {
-	content, err := io.ReadAll(r)
-	if err != nil {
-		return
-	}
-
-	lines := strings.Split(string(content), "\n")
-	for i, line := range lines {
-		var user User
-		if err = json.Unmarshal([]byte(line), &user); err != nil {
-			return
-		}
-		result[i] = user
-	}
-	return
-}
-
-func countDomains(u users, domain string) (DomainStat, error) {
 	result := make(DomainStat)
+	domainLower := strings.ToLower(domain)
+	patternStr := "\\." + regexp.QuoteMeta(domainLower)
+	domainRegexp, err := regexp.Compile(patternStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid domain pattern: %w", err)
+	}
+	// --- НАЧАЛО ОПТИМИЗАЦИИ ---
+	const chunkSize = 5 * 1024 * 1024 // Читаем блоками по 5 МБ
 
-	for _, user := range u {
-		matched, err := regexp.Match("\\."+domain, []byte(user.Email))
-		if err != nil {
-			return nil, err
+	scanner := bufio.NewScanner(r)
+
+	// Настраиваем большой начальный буфер и его максимальный рост.
+	buf := make([]byte, 0, chunkSize/2)
+	scanner.Buffer(buf, chunkSize)
+
+	var user User // Структура для переиспользования
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		// Быстрая проверка на валидность JSON строки
+		if len(line) == 0 || line[0] != '{' || line[len(line)-1] != '}' {
+			continue
+		}
+		// 2. Используем sonic.Unmarsha вместо стандартного
+		// Sonic выполняет эту операцию значительно быстрее.
+		if err := jsoniter.Unmarshal(line, &user); err != nil {
+			continue
 		}
 
-		if matched {
-			num := result[strings.ToLower(strings.SplitN(user.Email, "@", 2)[1])]
-			num++
-			result[strings.ToLower(strings.SplitN(user.Email, "@", 2)[1])] = num
+		email := user.Email
+		atIndex := strings.Index(email, "@")
+		if atIndex == -1 {
+			continue
+		}
+		domainPart := strings.ToLower(email[atIndex+1:])
+		if domainRegexp.MatchString(domainPart) {
+			result[domainPart]++
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading input: %w", err)
+	}
+
 	return result, nil
 }
