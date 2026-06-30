@@ -1,0 +1,7 @@
+goos: darwin
+goarch: amd64
+pkg: github.com/VadimVikt/edu-golang/hw10_program_optimization
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkGetDomainStat-12              3         532495087 ns/op        544962090 B/op   5300264 allocs/op
+PASS
+ok      github.com/VadimVikt/edu-golang/hw10_program_optimization       4.050s

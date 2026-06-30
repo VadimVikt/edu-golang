@@ -1,6 +1,6 @@
 module github.com/VadimVikt/edu-golang/hw10_program_optimization
 
-go 1.25.0
+go 1.23
 
 require (
 	github.com/bytedance/sonic v1.15.2
