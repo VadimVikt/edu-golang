@@ -5,6 +5,7 @@ package hw10programoptimization
 
 import (
 	"bytes"
+	"log"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -65,4 +66,13 @@ func TestInvalidEmail(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, DomainStat{}, stat)
 	})
+}
+
+func TestDoubleDotInEmail(t *testing.T) {
+	data := `{"Id":1,"Name":"Howard Mendoza","Username":"0Oliver","Email":"aliquid_qui_ea@Browsedrive.com.gov","Phone":"6-866-899-36-79","Password":"InAQJvsq","Address":"Blackbird Place 25"}`
+	res, _ := GetDomainStat(bytes.NewBufferString(data), "com")
+	stat, _ := GetDomainStat(bytes.NewBufferString(data), "gov")
+	require.Equal(t, DomainStat{}, res)
+	require.Equal(t, DomainStat{"browsedrive.com.gov": 1}, stat)
+	log.Println(stat)
 }

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 
 	jsoniter "github.com/bytedance/sonic" //nolint
@@ -24,13 +23,8 @@ type DomainStat map[string]int
 
 func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
 	result := make(DomainStat)
-	domainLower := strings.ToLower(domain)
-	patternStr := "\\." + regexp.QuoteMeta(domainLower)
-	domainRegexp, err := regexp.Compile(patternStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid domain pattern: %w", err)
-	}
-	// --- НАЧАЛО ОПТИМИЗАЦИИ ---
+	domain = "." + strings.ToLower(domain)
+
 	const chunkSize = 5 * 1024 * 1024 // Читаем блоками по 5 МБ
 
 	scanner := bufio.NewScanner(r)
@@ -48,7 +42,7 @@ func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
 		if len(line) == 0 || line[0] != '{' || line[len(line)-1] != '}' {
 			continue
 		}
-		// 2. Используем sonic.Unmarsha вместо стандартного
+		// 2. Используем sonic.Unmarshal вместо стандартного
 		// Sonic выполняет эту операцию значительно быстрее.
 		if err := jsoniter.Unmarshal(line, &user); err != nil {
 			continue
@@ -60,7 +54,7 @@ func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
 			continue
 		}
 		domainPart := strings.ToLower(email[atIndex+1:])
-		if domainRegexp.MatchString(domainPart) {
+		if strings.HasSuffix(domainPart, domain) {
 			result[domainPart]++
 		}
 	}
